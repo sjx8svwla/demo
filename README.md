@@ -164,7 +164,7 @@ return new class extends Migration
 
 ### Шаг 3. Создать модель User 
 
-Открой файл `app/Models/User.php` и измени на
+Открой файл `app/Models/User.php` и измени на:
 
 ```bash
 <?php
