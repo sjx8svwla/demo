@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Шпаргалка Модуль 6</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+  h1 { text-align: center; color: #1a1a2e; }
+  h2 { text-align: center; color: #666; font-size: 14px; font-weight: normal; }
+  .step { background: #4ecca3; color: white; padding: 10px 16px; border-radius: 8px; font-weight: bold; font-size: 15px; margin: 20px 0 8px 0; }
+  .card { background: white; border-radius: 10px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 10px; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 8px 0; }
+  .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 6px 0; }
+  .warn { background: #f8d7da; border-left: 4px solid #dc3545; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 6px 0; }
+  .green { background: #d4edda; border-left: 4px solid #28a745; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 6px 0; }
+  p { font-size: 14px; color: #333; margin: 6px 0; }
+  hr { border: none; border-top: 2px solid #4ecca3; margin: 30px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  th { background: #4ecca3; color: white; padding: 8px 12px; text-align: left; font-size: 13px; }
+  td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) { background: #f8f8f8; }
+  td code { background: #1e1e1e; color: #4ecca3; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>🚀 Шпаргалка: Модуль 6</h1>
+<h2>Laravel — валидация данных от эмулятора</h2>
+<hr>
+
+<!-- Как работает -->
+<div class="step">КАК ЭТО РАБОТАЕТ</div>
+<div class="card">
+  <p>На экзамене дают программу-эмулятор <strong>TransferSimulator</strong>. Она выдаёт данные (ФИО, ИНН и т.д.) через API.</p>
+  <p>Твоя задача:</p>
+  <p>1. Кнопка <strong>"Получить данные"</strong> → берёт данные с эмулятора → показывает на экране</p>
+  <p>2. Кнопка <strong>"Отправить результат теста"</strong> → проверяет данные → пишет корректно или нет</p>
+  <div class="note">💡 Ссылку эмулятора дадут на экзамене. Вставляешь её в контроллер и после слеша пишешь что нужно: fullName, inn, snils и т.д.</div>
+</div>
+
+<!-- Регулярки -->
+<div class="step">РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ — ЧТО КУДА ВСТАВЛЯТЬ</div>
+<div class="card">
+  <p>Регулярное выражение — это шаблон проверки текста. На экзамене скажут что проверять — берёшь нужную строку из таблицы и вставляешь в контроллер.</p>
+  <table>
+    <tr>
+      <th>Что проверяем</th>
+      <th>Регулярное выражение</th>
+      <th>Пример правильного</th>
+    </tr>
+    <tr>
+      <td>ФИО</td>
+      <td><code>/^[А-Яа-яЁё]+ [А-Яа-яЁё]+ [А-Яа-яЁё]+$/u</code></td>
+      <td>Иванов Иван Иванович</td>
+    </tr>
+    <tr>
+      <td>СНИЛС</td>
+      <td><code>/^[0-9]{3}-[0-9]{3}-[0-9]{3} [0-9]{2}$/</code></td>
+      <td>123-456-789 01</td>
+    </tr>
+    <tr>
+      <td>Телефон</td>
+      <td><code>/^\+7 [0-9]{3} [0-9]{3}-[0-9]{2}-[0-9]{2}$/</code></td>
+      <td>+7 999 123-45-67</td>
+    </tr>
+    <tr>
+      <td>ИНН</td>
+      <td><code>/^[0-9]+$/</code></td>
+      <td>1234567890</td>
+    </tr>
+    <tr>
+      <td>Паспорт</td>
+      <td><code>/^[0-9]{2} [0-9]{2} [0-9]{6}$/</code></td>
+      <td>12 34 567890</td>
+    </tr>
+    <tr>
+      <td>Email</td>
+      <td>через Laravel: <code>'email' => 'required|email'</code></td>
+      <td>ivan@mail.ru</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ШАГ 1 -->
+<div class="step">ШАГ 1: Создать проект</div>
+<div class="card">
+  <p>Открой терминал и выполни:</p>
+  <pre>composer create-project laravel/laravel --prefer-dist demo6
+cd demo6
+php artisan make:controller TestCaseController</pre>
+  <div class="note">💡 --prefer-dist скачивает быстрее</div>
+</div>
+
+<!-- ШАГ 2 -->
+<div class="step">ШАГ 2: Настроить маршруты — routes/web.php</div>
+<div class="card">
+  <p>Открой <strong>routes/web.php</strong> и замени всё содержимое на:</p>
+  <pre>&lt;?php
+use App\Http\Controllers\TestCaseController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', [TestCaseController::class, 'show'])->name('test-case');
+Route::get('/get', [TestCaseController::class, 'getData'])->name('test-case.get');
+Route::post('/check', [TestCaseController::class, 'checkData'])->name('test-case.check');</pre>
+</div>
+
+<!-- ШАГ 3 -->
+<div class="step">ШАГ 3: Написать контроллер — app/Http/Controllers/TestCaseController.php</div>
+<div class="card">
+  <p>Открой <strong>app/Http/Controllers/TestCaseController.php</strong> и замени всё на:</p>
+  <div class="note">💡 Вместо <strong>http://localhost:8080/api/</strong> вставь ссылку которую дадут на экзамене. После слеша пишешь что нужно: fullName, inn, snils, phone, passport</div>
+  <pre>&lt;?php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class TestCaseController extends Controller
+{
+    // Показать страницу
+    public function show(Request $request)
+    {
+        return view('index');
+    }
+
+    // Получить данные с эмулятора
+    public function getData()
+    {
+        // ВСТАВЬ СЮДА ССЫЛКУ С ЭКЗАМЕНА + нужное поле после слеша
+        $data = file_get_contents('http://localhost:8080/api/fullName');
+
+        if ($data) {
+            $data = json_decode($data)->value;
+        }
+
+        return redirect()->route('test-case')->with('value', $data);
+    }
+
+    // Проверить данные
+    public function checkData(Request $request)
+    {
+        $value = $request->input('value');
+
+        // ВЫБЕРИ НУЖНУЮ РЕГУЛЯРКУ ИЗ ТАБЛИЦЫ ВЫШЕ И ВСТАВЬ СЮДА:
+        if (preg_match('/^[А-Яа-яЁё]+ [А-Яа-яЁё]+ [А-Яа-яЁё]+$/u', $value)) {
+            return redirect()->route('test-case')
+                ->with('value', $value)
+                ->with('message', 'ФИО корректно');
+        } else {
+            return redirect()->route('test-case')
+                ->with('value', $value)
+                ->with('message', 'ФИО содержит некорректные символы');
+        }
+    }
+}</pre>
+
+  <div class="warn">⚠️ Если нужно проверять СНИЛС — меняешь только регулярку и текст сообщения! Всё остальное остаётся.</div>
+
+  <p><strong>Примеры как менять под разные данные:</strong></p>
+  <pre>// Для СНИЛС:
+if (preg_match('/^[0-9]{3}-[0-9]{3}-[0-9]{3} [0-9]{2}$/', $value)) {
+    ->with('message', 'СНИЛС корректен');
+} else {
+    ->with('message', 'СНИЛС некорректен');
+}
+
+// Для телефона:
+if (preg_match('/^\+7 [0-9]{3} [0-9]{3}-[0-9]{2}-[0-9]{2}$/', $value)) {
+    ->with('message', 'Телефон корректен');
+} else {
+    ->with('message', 'Телефон некорректен');
+}
+
+// Для паспорта:
+if (preg_match('/^[0-9]{2} [0-9]{2} [0-9]{6}$/', $value)) {
+    ->with('message', 'Паспорт корректен');
+} else {
+    ->with('message', 'Паспорт некорректен');
+}</pre>
+
+  <p><strong>Если нужно получить несколько полей сразу:</strong></p>
+  <pre>public function getData()
+{
+    $fullName = json_decode(file_get_contents('http://localhost:8080/api/fullName'))->value;
+    $inn = json_decode(file_get_contents('http://localhost:8080/api/inn'))->value;
+
+    return redirect()->route('test-case')
+        ->with('fullName', $fullName)
+        ->with('inn', $inn);
+}</pre>
+</div>
+
+<!-- ШАГ 4 -->
+<div class="step">ШАГ 4: Создать страницу — resources/views/index.blade.php</div>
+<div class="card">
+  <p>Удали файл <strong>resources/views/welcome.blade.php</strong></p>
+  <p>Создай новый файл <strong>resources/views/index.blade.php</strong> и вставь:</p>
+  <pre>&lt;!DOCTYPE html&gt;
+&lt;html lang="ru"&gt;
+&lt;head&gt;
+    &lt;meta charset="UTF-8"&gt;
+    &lt;title&gt;Валидация данных&lt;/title&gt;
+    &lt;style&gt;
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .box { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        button { padding: 8px 20px; background: #4ecca3; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #38b2ac; }
+        .value { margin-left: 10px; font-weight: bold; color: #1a1a2e; }
+        .message { margin-left: 10px; color: green; font-weight: bold; }
+        .error { color: red; }
+        h2 { color: #1a1a2e; }
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h2&gt;Валидация данных&lt;/h2&gt;
+
+    &lt;!-- Кнопка 1: Получить данные --&gt;
+    &lt;div class="box"&gt;
+        &lt;form action="{{ route('test-case.get') }}" method="GET"&gt;
+            &lt;button type="submit"&gt;Получить данные&lt;/button&gt;
+            &lt;span class="value"&gt;{{ session('value') }}&lt;/span&gt;
+        &lt;/form&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Кнопка 2: Отправить результат теста --&gt;
+    &lt;div class="box"&gt;
+        &lt;form method="POST" action="{{ route('test-case.check') }}"&gt;
+            @csrf
+            &lt;input type="hidden" name="value" value="{{ session('value') }}"&gt;
+            &lt;button type="submit"&gt;Отправить результат теста&lt;/button&gt;
+            &lt;span class="message"&gt;{{ session('message') }}&lt;/span&gt;
+        &lt;/form&gt;
+    &lt;/div&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+  <div class="note">💡 Если нужно вывести несколько полей — добавь в blade дополнительные span:<br>
+  &lt;span&gt;{{ session('fullName') }}&lt;/span&gt;<br>
+  &lt;span&gt;{{ session('inn') }}&lt;/span&gt;</div>
+</div>
+
+<!-- ШАГ 5 -->
+<div class="step">ШАГ 5: Запустить проект</div>
+<div class="card">
+  <pre>php artisan serve</pre>
+  <p>Открой браузер: <strong>http://localhost:8000</strong></p>
+  <div class="green">✅ Нажми "Получить данные" — должно появиться ФИО с эмулятора. Нажми "Отправить результат теста" — появится сообщение корректно или нет.</div>
+</div>
+
+<!-- Итог -->
+<hr>
+<div class="green" style="text-align:center; font-size:13px; padding: 12px;">
+  Порядок на экзамене: создать проект → routes/web.php → контроллер (вставить ссылку + регулярку) → index.blade.php → serve → проверить
+</div>
+
+</body>
+</html>
