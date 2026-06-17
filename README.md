@@ -1,4 +1,4 @@
-# !!!М1 М2!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+## !!!М1 М2!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 CREATE DATABASE moloko CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE moloko;
@@ -78,7 +78,7 @@ INSERT INTO zakazchiki (id, name, inn, address, phone, salesman, buyer) VALUES
 
 
 
-# !!!М3!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxx
+## !!!М3!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxx
 ```
 SELECT 
     z.id AS zakaz_id,
@@ -104,16 +104,16 @@ GROUP BY z.id, z.nomer, zk.name;
 
 
 
-# !!!М4!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
+## !!!М4!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
 
-## ШАГ 1: Создать проект Laravel
+### ШАГ 1: Создать проект Laravel
 ```
 composer create-project laravel/laravel demo
 cd demo
 composer require laravel/ui
 php artisan ui bootstrap --auth
 ```
-## ШАГ 2: Настроить layouts/app.blade.php
+### ШАГ 2: Настроить layouts/app.blade.php
 Открой файл: resources/views/layouts/app.blade.php
 
 Удали ВСЁ содержимое и вставь:
@@ -154,7 +154,7 @@ php artisan ui bootstrap --auth
 </body>
 </html>
 ```
-## ШАГ 3: Скопировать фото капчи
+### ШАГ 3: Скопировать фото капчи
 ```
 Создай папку: public/images/
 
@@ -166,7 +166,7 @@ php artisan ui bootstrap --auth
 [3] = нижний левый
 [4] = нижний правый
 ```
-## ШАГ 4: Создать форму входа с капчей
+### ШАГ 4: Создать форму входа с капчей
 Открой файл: resources/views/auth/login.blade.php
 
 Удали ВСЁ содержимое и вставь:
@@ -330,7 +330,7 @@ attachEvents();
 </script>
 @endsection
 ```
-## ШАГ 5: Запустить проект
+### ШАГ 5: Запустить проект
 В терминале запусти по очереди:
 ```
 php artisan migrate
@@ -343,7 +343,7 @@ php artisan serve
 
 
 
-# !!!М5!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+## !!!М5!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 showLoginForm() — отображает форму входа с капчей, параметры 
 отсутствуют  
@@ -370,8 +370,126 @@ destroy(Request $request) — удаляет статью из базы данн
 
 
 
-!!!М6!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
+## !!!М6!!!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
+### ШАГ 1: Создать проект
+Открой терминал и выполни:
+```
+composer create-project laravel/laravel --prefer-dist demo6
+cd demo6
+php artisan make:controller TestCaseController
+```
+
+### ШАГ 2: Настроить маршруты — routes/web.php
+Открой routes/web.php и замени всё содержимое на:
+```
+<?php
+use App\Http\Controllers\TestCaseController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', [TestCaseController::class, 'show'])->name('test-case');
+Route::get('/get', [TestCaseController::class, 'getData'])->name('test-case.get');
+Route::post('/check', [TestCaseController::class, 'checkData'])->name('test-case.check');
+```
+
+### ШАГ 3: Написать контроллер — app/Http/Controllers/TestCaseController.php
+Открой app/Http/Controllers/TestCaseController.php и замени всё на:
+ ```
+<?php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class TestCaseController extends Controller
+{
+    // Показать страницу
+    public function show(Request $request)
+    {
+        return view('index');
+    }
+
+    // Получить данные с эмулятора
+    public function getData()
+    {
+        // ВСТАВЬ СЮДА ССЫЛКУ С ЭКЗАМЕНА + нужное поле после слеша
+        $data = file_get_contents('http://localhost:8080/api/fullName');
+
+        if ($data) {
+            $data = json_decode($data)->value;
+        }
+
+        return redirect()->route('test-case')->with('value', $data);
+    }
+
+    // Проверить данные
+    public function checkData(Request $request)
+    {
+        $value = $request->input('value');
+
+        // ВЫБЕРИ НУЖНУЮ РЕГУЛЯРКУ ИЗ ТАБЛИЦЫ ВЫШЕ И ВСТАВЬ СЮДА:
+        if (preg_match('/^[А-Яа-яЁё]+ [А-Яа-яЁё]+ [А-Яа-яЁё]+$/u', $value)) {
+            return redirect()->route('test-case')
+                ->with('value', $value)
+                ->with('message', 'ФИО корректно');
+        } else {
+            return redirect()->route('test-case')
+                ->with('value', $value)
+                ->with('message', 'ФИО содержит некорректные символы');
+        }
+    }
+}
+```
+
+### ШАГ 4: Создать страницу — resources/views/index.blade.php
+Удали файл resources/views/welcome.blade.php
+
+Создай новый файл resources/views/index.blade.php и вставь:
+```
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Валидация данных</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .box { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        button { padding: 8px 20px; background: #4ecca3; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #38b2ac; }
+        .value { margin-left: 10px; font-weight: bold; color: #1a1a2e; }
+        .message { margin-left: 10px; color: green; font-weight: bold; }
+        .error { color: red; }
+        h2 { color: #1a1a2e; }
+    </style>
+</head>
+<body>
+    <h2>Валидация данных</h2>
+
+    <!-- Кнопка 1: Получить данные -->
+    <div class="box">
+        <form action="{{ route('test-case.get') }}" method="GET">
+            <button type="submit">Получить данные</button>
+            <span class="value">{{ session('value') }}</span>
+        </form>
+    </div>
+
+    <!-- Кнопка 2: Отправить результат теста -->
+    <div class="box">
+        <form method="POST" action="{{ route('test-case.check') }}">
+            @csrf
+            <input type="hidden" name="value" value="{{ session('value') }}">
+            <button type="submit">Отправить результат теста</button>
+            <span class="message">{{ session('message') }}</span>
+        </form>
+    </div>
+
+</body>
+</html>
+```
+
+### ШАГ 5: Запустить проект
+```
+php artisan serve
+```
 
 
 
