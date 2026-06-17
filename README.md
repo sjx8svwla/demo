@@ -118,242 +118,611 @@ GROUP BY z.id, z.nomer, zk.name;
 ```bash
 composer create-project laravel/laravel demo
 cd demo
-composer require laravel/ui
-php artisan ui bootstrap --auth
 ```
 
-### Шаг 2. `resources/views/layouts/app.blade.php` — заменить всё
+### Шаг 2. Создать миграцию пользователей
 
-```html
+Найди файл, который заканчивается на `_create_users_table.php`, и замени его содержимое полностью:
+
+```bash
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->unsignedTinyInteger('wrong_counter')->default(0);
+            $table->timestamps();
+        });
+
+        Schema::create('sessions', function (Blueprint $table) {
+            $table->string('id')->primary();
+            $table->foreignId('user_id')->nullable()->index();
+            $table->string('ip_address', 45)->nullable();
+            $table->text('user_agent')->nullable();
+            $table->longText('payload');
+            $table->integer('last_activity')->index();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('users');
+        Schema::dropIfExists('sessions');
+    }
+};
+```
+
+### Шаг 3. Создать модель User 
+
+Открой файл `app/Models/User.php` и измени на
+
+```bash
+<?php
+
+namespace App\Models;
+
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    use Notifiable;
+
+    protected $fillable = ['name', 'email', 'password', 'wrong_counter'];
+
+    protected $hidden = ['password', 'remember_token'];
+
+    protected function casts(): array
+    {
+        return [
+            'password' => 'hashed',
+        ];
+    }
+}
+```
+
+---
+
+### Шаг 4. Создать папку для картинок капчи и сами файлы
+
+```bash
+mkdir -p public/images
+```
+
+### Шаг 5. Создать контроллеры командами artisan
+
+```bash
+php artisan make:controller ActionsController
+php artisan make:controller ViewsController
+```
+
+### Шаг 6. Заполнить ViewsController.php
+ Открой `app/Http/Controllers/ViewsController.php` и замени на:
+```bash
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+
+class ViewsController extends Controller
+{
+    public function register()
+    {
+        return view('register');
+    }
+
+    public function login()
+    {
+        return view('login');
+    }
+
+    public function index()
+    {
+        return view('index', [
+            'users' => User::all()
+        ]);
+    }
+
+    public function editUser(?User $user = null)
+    {
+        return view('user_form', [
+            'user' => $user
+        ]);
+    }
+}
+```
+
+
+### Шаг 7. Заполнить ActionsController.php
+ 
+```bash
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class ActionsController extends Controller
+{
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6',
+            'captcha_solved' => 'required|in:1',
+        ]);
+
+        $user = new User();
+        $user->name = $request->input('name');
+        $user->email = $request->input('email');
+        $user->password = $request->input('password');
+        $user->save();
+
+        return redirect()->route('login')->with('status', 'Регистрация успешна, войдите.');
+    }
+
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+            'captcha_solved' => 'required|in:1',
+        ]);
+
+        $user = User::firstWhere('email', $request->input('email'));
+
+        if ($user && $user->wrong_counter >= 3) {
+            return redirect()
+                ->route('login')
+                ->withErrors(['email' => 'Ваш аккаунт заблокирован. Обратитесь к администратору.']);
+        }
+
+        if (Auth::attempt($request->only(['email', 'password']))) {
+            /** @var User $user */
+            $user = Auth::user();
+            $user->wrong_counter = 0;
+            $user->save();
+
+            return redirect()->route('dashboard');
+        }
+
+        if ($user) {
+            $user->wrong_counter++;
+            $user->save();
+
+            if ($user->wrong_counter >= 3) {
+                return redirect()
+                    ->route('login')
+                    ->withErrors(['email' => 'Аккаунт заблокирован после 3 неверных попыток.']);
+            }
+        }
+
+        return redirect()
+            ->route('login')
+            ->withErrors(['email' => 'Неверный логин или пароль.'])
+            ->withInput($request->only('email'));
+    }
+
+    public function editUser(User $user, Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => "required|email|unique:users,email,{$user->id}",
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        $user->name = $request->input('name');
+        $user->email = $request->input('email');
+        if ($request->filled('password')) {
+            $user->password = $request->input('password');
+        }
+        $user->save();
+
+        return redirect()->route('dashboard')->with('status', 'Пользователь обновлён.');
+    }
+
+    public function createUser(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6',
+        ]);
+
+        $user = new User();
+        $user->name = $request->input('name');
+        $user->email = $request->input('email');
+        $user->password = $request->input('password');
+        $user->save();
+
+        return redirect()->route('dashboard')->with('status', 'Пользователь создан.');
+    }
+
+    public function deleteUser(User $user)
+    {
+        if ($user->id === Auth::id()) {
+            return redirect()->route('dashboard')->withErrors(['user' => 'Нельзя удалить себя.']);
+        }
+        $user->delete();
+        return redirect()->route('dashboard')->with('status', 'Пользователь удалён.');
+    }
+
+    public function unlockUser(User $user)
+    {
+        if ($user->id === Auth::id()) {
+            return redirect()->route('dashboard')->withErrors(['user' => 'Нельзя блокировать/разблокировать себя.']);
+        }
+
+        if ($user->wrong_counter < 3) {
+            $user->wrong_counter = 3;
+            $user->save();
+            return redirect()->route('dashboard')->with('status', 'Пользователь заблокирован.');
+        }
+
+        $user->wrong_counter = 0;
+        $user->save();
+        return redirect()->route('dashboard')->with('status', 'Пользователь разблокирован.');
+    }
+
+    public function logout()
+    {
+        Auth::logout();
+        return redirect()->route('login');
+    }
+}
+```
+
+---
+
+### Шаг 8. Заполнить routes/web.php
+
+```bash
+<?php
+
+use App\Http\Controllers\ViewsController;
+use App\Http\Controllers\ActionsController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return Auth::check() ? redirect()->route('dashboard') : redirect()->route('register');
+});
+
+Route::middleware('guest')->group(function () {
+    Route::get('/register', [ViewsController::class, 'register'])->name('register');
+    Route::post('/register', [ActionsController::class, 'register'])->name('register.store');
+
+    Route::get('/login', [ViewsController::class, 'login'])->name('login');
+    Route::post('/login', [ActionsController::class, 'login'])->name('login.attempt');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', [ViewsController::class, 'index'])->name('dashboard');
+
+    Route::get('/user/{user?}', [ViewsController::class, 'editUser'])->name('user');
+    Route::post('/user/{user?}', [ActionsController::class, 'createUser'])->name('user.save');
+    Route::put('/user/{user}', [ActionsController::class, 'editUser'])->name('user.update');
+    Route::delete('/user/{user}', [ActionsController::class, 'deleteUser'])->name('user.delete');
+    Route::patch('/user/{user}', [ActionsController::class, 'unlockUser'])->name('user.unlock');
+
+    Route::post('/logout', [ActionsController::class, 'logout'])->name('logout');
+});
+```
+
+---
+
+### Шаг 9. Создать resources/views/register.blade.php
+
+```bash
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ config('app.name', 'Laravel') }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Регистрация</title>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="/">{{ config('app.name', 'Laravel') }}</a>
-            <div class="navbar-nav ms-auto">
-                @guest
-                    <a class="nav-link" href="{{ route('login') }}">Вход</a>
-                    <a class="nav-link" href="{{ route('register') }}">Регистрация</a>
-                @else
-                    <a class="nav-link" href="{{ route('logout') }}"
-                       onclick="event.preventDefault();
-                       document.getElementById('logout-form').submit();">
-                        Выйти
-                    </a>
-                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                        @csrf
-                    </form>
-                @endguest
+    <form method="POST" action="{{ route('register.store') }}">
+        @csrf
+
+        <p>
+            Имя: <input type="text" name="name" value="{{ old('name') }}" required>
+            @error('name') {{ $message }} @enderror
+        </p>
+
+        <p>
+            Email: <input type="email" name="email" value="{{ old('email') }}" required>
+            @error('email') {{ $message }} @enderror
+        </p>
+
+        <p>
+            Пароль: <input type="password" name="password" required>
+            @error('password') {{ $message }} @enderror
+        </p>
+
+        <p>Собери картинку (перетащи кусочки в порядок 1,2,3,4):</p>
+
+        <div id="cap" style="display:grid;grid-template-columns:120px 120px;grid-template-rows:120px 120px;gap:2px;width:244px;">
+            <div class="p" draggable="true" data-i="3" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/3.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="1" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/1.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="4" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/4.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="2" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/2.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
             </div>
         </div>
-    </nav>
-    <main>
-        @yield('content')
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+        <p id="status"></p>
+        <input type="hidden" name="captcha_solved" id="cs" value="0">
+
+        <p><button type="submit" id="btn" disabled>Зарегистрироваться</button></p>
+        <p><a href="{{ route('login') }}">Уже есть аккаунт? Войти</a></p>
+    </form>
+
+    <script>
+        let src = null;
+        function bind() {
+            document.querySelectorAll('.p').forEach(el => {
+                el.ondragstart = () => { src = el; el.style.opacity = '0.4'; };
+                el.ondragend = () => el.style.opacity = '1';
+                el.ondragover = e => e.preventDefault();
+                el.ondrop = e => {
+                    e.preventDefault();
+                    if (src !== el) {
+                        let sc = src.cloneNode(true);
+                        let tc = el.cloneNode(true);
+                        src.parentNode.replaceChild(tc, src);
+                        el.parentNode.replaceChild(sc, el);
+                        bind();
+                    }
+                    check();
+                };
+            });
+        }
+        function check() {
+            let order = [...document.getElementById('cap').children].map(p => +p.dataset.i);
+            let ok = JSON.stringify(order) === JSON.stringify([1,2,3,4]);
+            document.getElementById('status').textContent = ok ? 'Капча пройдена!' : 'Неверный порядок!';
+            document.getElementById('cs').value = ok ? '1' : '0';
+            document.getElementById('btn').disabled = !ok;
+        }
+        bind();
+    </script>
 </body>
 </html>
 ```
 
-### Шаг 3. Скопировать фото капчи
+---
 
-Создай папку `public/images/` и скопируй туда 4 фото:
+### Шаг 10. Создать resources/views/login.blade.php
 
-| Файл | Расположение кусочка |
-|------|----------------------|
-| `1.png` | верхний левый |
-| `2.png` | верхний правый |
-| `3.png` | нижний левый |
-| `4.png` | нижний правый |
+```bash
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход</title>
+</head>
+<body>
+    @if(session('status'))
+        <p>{{ session('status') }}</p>
+    @endif
 
-### Шаг 4. `resources/views/auth/login.blade.php` — заменить всё
+    <form method="POST" action="{{ route('login.attempt') }}">
+        @csrf
 
-```html
-@extends('layouts.app')
+        <p>
+            Email: <input type="email" name="email" value="{{ old('email') }}" required>
+            @error('email') {{ $message }} @enderror
+        </p>
 
-@section('content')
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">Вход</div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('login') }}">
-                        @csrf
+        <p>
+            Пароль: <input type="password" name="password" required>
+            @error('password') {{ $message }} @enderror
+        </p>
 
-                        <div class="row mb-3">
-                            <label for="email" class="col-md-4 col-form-label text-md-end">Email</label>
-                            <div class="col-md-6">
-                                <input id="email" type="email"
-                                    class="form-control @error('email') is-invalid @enderror"
-                                    name="email" value="{{ old('email') }}" required autofocus>
-                                @error('email')
-                                    <span class="invalid-feedback"><strong>{{ $message }}</strong></span>
-                                @enderror
-                            </div>
-                        </div>
+        <p>Собери картинку (перетащи кусочки в порядок 1,2,3,4):</p>
 
-                        <div class="row mb-3">
-                            <label for="password" class="col-md-4 col-form-label text-md-end">Пароль</label>
-                            <div class="col-md-6">
-                                <input id="password" type="password"
-                                    class="form-control @error('password') is-invalid @enderror"
-                                    name="password" required>
-                                @error('password')
-                                    <span class="invalid-feedback"><strong>{{ $message }}</strong></span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <!-- КАПЧА -->
-                        <div class="row mb-3">
-                            <label class="col-md-4 col-form-label text-md-end fw-bold">Капча:</label>
-                            <div class="col-md-6">
-                                <p class="text-muted small mb-2">Собери картинку: перетащи кусочки</p>
-                                <div id="captcha-container"
-                                     style="display:grid;
-                                            grid-template-columns: 120px 120px;
-                                            grid-template-rows: 120px 120px;
-                                            gap:2px; width:244px;
-                                            border:2px dashed #ccc;
-                                            padding:2px; border-radius:6px;">
-
-                                    <!-- Кусочки перемешаны! data-index = правильная позиция -->
-                                    <div class="captcha-piece" draggable="true" data-index="3"
-                                         style="width:120px;height:120px;cursor:grab;
-                                                border:2px solid #aaa;border-radius:4px;overflow:hidden;">
-                                        <img src="{{ asset('images/3.png') }}"
-                                             style="width:100%;height:100%;object-fit:cover;pointer-events:none;">
-                                    </div>
-
-                                    <div class="captcha-piece" draggable="true" data-index="1"
-                                         style="width:120px;height:120px;cursor:grab;
-                                                border:2px solid #aaa;border-radius:4px;overflow:hidden;">
-                                        <img src="{{ asset('images/1.png') }}"
-                                             style="width:100%;height:100%;object-fit:cover;pointer-events:none;">
-                                    </div>
-
-                                    <div class="captcha-piece" draggable="true" data-index="4"
-                                         style="width:120px;height:120px;cursor:grab;
-                                                border:2px solid #aaa;border-radius:4px;overflow:hidden;">
-                                        <img src="{{ asset('images/4.png') }}"
-                                             style="width:100%;height:100%;object-fit:cover;pointer-events:none;">
-                                    </div>
-
-                                    <div class="captcha-piece" draggable="true" data-index="2"
-                                         style="width:120px;height:120px;cursor:grab;
-                                                border:2px solid #aaa;border-radius:4px;overflow:hidden;">
-                                        <img src="{{ asset('images/2.png') }}"
-                                             style="width:100%;height:100%;object-fit:cover;pointer-events:none;">
-                                    </div>
-
-                                </div>
-                                <div id="captcha-status"
-                                     style="font-size:13px;min-height:20px;margin-top:6px;"></div>
-                                <input type="hidden" name="captcha_solved" id="captcha_solved" value="0">
-                            </div>
-                        </div>
-
-                        <div class="row mb-0">
-                            <div class="col-md-8 offset-md-4">
-                                <button type="submit" class="btn btn-primary" id="login-btn" disabled>
-                                    Войти
-                                </button>
-                            </div>
-                        </div>
-
-                    </form>
-                </div>
+        <div id="cap" style="display:grid;grid-template-columns:120px 120px;grid-template-rows:120px 120px;gap:2px;width:244px;">
+            <div class="p" draggable="true" data-i="3" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/3.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="1" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/1.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="4" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/4.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
+            </div>
+            <div class="p" draggable="true" data-i="2" style="overflow:hidden;cursor:grab;">
+                <img src="{{ asset('images/2.png') }}" style="width:120px;height:120px;object-fit:cover;pointer-events:none;">
             </div>
         </div>
-    </div>
-</div>
 
-<script>
-let dragSrc = null;
+        <p id="status"></p>
+        <input type="hidden" name="captcha_solved" id="cs" value="0">
 
-function attachEvents() {
-    document.querySelectorAll('.captcha-piece').forEach(el => {
-        el.addEventListener('dragstart', function() {
-            dragSrc = this;
-            this.style.opacity = '0.4';
-        });
-        el.addEventListener('dragend', function() {
-            this.style.opacity = '1';
-        });
-        el.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.style.border = '2px solid #3498db';
-        });
-        el.addEventListener('dragleave', function() {
-            this.style.border = '2px solid #aaa';
-        });
-        el.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.style.border = '2px solid #aaa';
-            if (dragSrc !== this) {
-                const srcClone = dragSrc.cloneNode(true);
-                const tgtClone = this.cloneNode(true);
-                dragSrc.parentNode.replaceChild(tgtClone, dragSrc);
-                this.parentNode.replaceChild(srcClone, this);
-                attachEvents();
-            }
-            checkOrder();
-        });
-    });
-}
+        <p><button type="submit" id="btn" disabled>Войти</button></p>
+        <p><a href="{{ route('register') }}">Нет аккаунта? Зарегистрироваться</a></p>
+    </form>
 
-function checkOrder() {
-    const container = document.getElementById('captcha-container');
-    const pieces = [...container.children];
-    const order = pieces.map(p => parseInt(p.dataset.index));
-    const isCorrect = JSON.stringify(order) === JSON.stringify([1,2,3,4]);
-    const status = document.getElementById('captcha-status');
-    const input = document.getElementById('captcha_solved');
-    const btn = document.getElementById('login-btn');
-    if (isCorrect) {
-        status.style.color = 'green';
-        status.textContent = 'Капча пройдена!';
-        input.value = '1';
-        btn.disabled = false;
-    } else {
-        status.style.color = 'red';
-        status.textContent = 'Неверный порядок!';
-        input.value = '0';
-        btn.disabled = true;
-    }
-}
-
-attachEvents();
-</script>
-@endsection
+    <script>
+        let src = null;
+        function bind() {
+            document.querySelectorAll('.p').forEach(el => {
+                el.ondragstart = () => { src = el; el.style.opacity = '0.4'; };
+                el.ondragend = () => el.style.opacity = '1';
+                el.ondragover = e => e.preventDefault();
+                el.ondrop = e => {
+                    e.preventDefault();
+                    if (src !== el) {
+                        let sc = src.cloneNode(true);
+                        let tc = el.cloneNode(true);
+                        src.parentNode.replaceChild(tc, src);
+                        el.parentNode.replaceChild(sc, el);
+                        bind();
+                    }
+                    check();
+                };
+            });
+        }
+        function check() {
+            let order = [...document.getElementById('cap').children].map(p => +p.dataset.i);
+            let ok = JSON.stringify(order) === JSON.stringify([1,2,3,4]);
+            document.getElementById('status').textContent = ok ? 'Капча пройдена!' : 'Неверный порядок!';
+            document.getElementById('cs').value = ok ? '1' : '0';
+            document.getElementById('btn').disabled = !ok;
+        }
+        bind();
+    </script>
+</body>
+</html>
 ```
 
-### Шаг 5. `routes/web.php` — заменить всё
+---
 
-```php
-<?php
+### Шаг 11. Создать resources/views/index.blade.php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
-Route::get('/', function () {
-    return view('layouts.app');
-});
-
-Auth::routes();
-
-Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
-
+```bash
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Список пользователей</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Имя</th>
+                <th>Email</th>
+                <th>Заблокирован</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($users as $user)
+                <tr>
+                    <td>{{ $user->name }}</td>
+                    <td>{{ $user->email }}</td>
+                    <td>{{ $user->wrong_counter >= 3 ? 'Да' : 'Нет' }}</td>
+                    <td>
+                        <a href="{{ route('user', ['user' => $user->id]) }}">Edit</a>
+                        <form action="{{ route('user.delete', ['user' => $user->id]) }}" method="POST" style="display:inline;">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit">Delete</button>
+                        </form>
+                        <form action="{{ route('user.unlock', ['user' => $user->id]) }}" method="POST" style="display:inline;">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit">{{ $user->wrong_counter >= 3 ? 'Unlock' : 'Block' }}</button>
+                        </form>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4">
+                    <a href="{{ route('user') }}">Create New User</a>
+                    <form action="{{ route('logout') }}" method="POST" style="display:inline;">
+                        @csrf
+                        <button type="submit">Logout</button>
+                    </form>
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+    @if(session('status'))
+        <div>{{ session('status') }}</div>
+    @endif
+    @if($errors->any())
+        <ul>
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    @endif
+</body>
+</html>
 ```
 
-### Шаг 6. Запустить проект
+---
+
+### Шаг 12. Создать resources/views/user_form.blade.php
+
+```bash
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ $user ? 'Edit user' : 'Create user' }}</title>
+</head>
+<body>
+    <h1>{{ $user ? 'Edit user' : 'Create user' }}</h1>
+    <form action="{{ $user ? route('user.update', $user->id) : route('user.save') }}" method="POST">
+        @csrf
+        @if ($user)
+            @method('PUT')
+        @endif
+        <div>
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" value="{{ old('name', $user->name ?? '') }}" required>
+        </div>
+        <div>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" value="{{ old('email', $user->email ?? '') }}" required>
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" {{ $user ? '' : 'required' }}>
+        </div>
+        <button type="submit">{{ $user ? 'Update user' : 'Create user' }}</button>
+        <a href="{{ route('dashboard') }}">Cancel</a>
+    </form>
+    @if($errors->any())
+        <ul>
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    @endif
+</body>
+</html>
+```
+
+---
+
+### Шаг 13. Удалить файл-заглушку Laravel
+
+```bash
+rm resources/views/welcome.blade.php
+```
+
+(на Windows в PowerShell, если `rm` не сработает: `Remove-Item resources/views/welcome.blade.php`)
+
+---
+
+### Шаг 14. Выполнить миграцию и запустить сервер
 
 ```bash
 php artisan migrate
