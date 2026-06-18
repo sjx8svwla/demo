@@ -138,7 +138,36 @@ INSERT INTO zakazchiki (id, name, inn, address, phone, salesman, buyer) VALUES
 ('000000003', 'ООО "Ромашка"', '4140784214', 'г. Омск, ул. Строителей, 294', '+79882584546', 0, 1),
 ('000000009', 'ООО "Ипподром"', '5874045632', 'г. Уфа, ул. Набережная, 37', '+79627486389', 1, 1),
 ('000000010', 'ООО "Ассоль"', '2629011278', 'г. Калуга, ул. Пушкина, 94', '+79184572398', 0, 1);
+
+
+
+SELECT 
+    z.id AS zakaz_id,
+    z.nomer AS nomer_zakaza,
+    zk.name AS zakazchik,
+    SUM(sz.kolichestvo * mat_cost.cena_materialov) AS polnaya_stoimost_zakaza
+FROM zakazy z
+JOIN zakazchiki zk ON zk.id = z.zakazchik_id
+JOIN sostav_zakaza sz ON sz.zakaz_id = z.id
+JOIN (
+    SELECT 
+        s.produkt_id,
+        SUM(s.kolichestvo * m.cena) AS cena_materialov
+    FROM spetsifikatsiya s
+    JOIN materialy m ON m.id = s.material_id
+    GROUP BY s.produkt_id
+) AS mat_cost ON mat_cost.produkt_id = sz.produkt_id
+WHERE z.id = 1   -- сюда вставляешь id нужного заказа
+GROUP BY z.id, z.nomer, zk.name;
+
+
+
+
+
+
 ```
+
+и вот. 
 
 
 
